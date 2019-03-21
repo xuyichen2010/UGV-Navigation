@@ -1,0 +1,107 @@
+#include "phidget_gps/PhidgetGPS.h"
+#include <stdexcept>
+#include "ros/ros.h"
+
+PhidgetGPS::PhidgetGPS() :
+    handle_(0)
+{
+    CPhidgetGPS_create(&handle_);
+
+    // set up handlers
+    CPhidget_set_OnAttach_Handler((CPhidgetHandle)handle_,
+            PhidgetGPS::AttachHandler, NULL);
+    CPhidget_set_OnDetach_Handler((CPhidgetHandle)handle_,
+            PhidgetGPS::DetachHandler, NULL);
+    CPhidget_set_OnError_Handler((CPhidgetHandle)handle_,
+            PhidgetGPS::ErrorHandler, NULL);
+    CPhidgetGPS_set_OnPositionChange_Handler(handle_,
+            PhidgetGPS::PositionChangeHandler, NULL);
+    CPhidgetGPS_set_OnPositionFixStatusChange_Handler(handle_,
+            PhidgetGPS::FixChangeHandler, NULL);
+
+    // open device
+    CPhidget_open((CPhidgetHandle)handle_, -1);
+    int result;
+    if ((result = CPhidget_waitForAttachment((CPhidgetHandle)handle_, 10000))) {
+        const char *err;
+        CPhidget_getErrorDescription(result, &err);
+
+        // clean up
+        CPhidget_close((CPhidgetHandle)handle_);
+        CPhidget_delete((CPhidgetHandle)handle_);
+
+        throw std::runtime_error(err);
+    }
+}
+
+PhidgetGPS::~PhidgetGPS() {
+    CPhidget_close((CPhidgetHandle)handle_);
+    CPhidget_delete((CPhidgetHandle)handle_);
+}
+
+phidget_gps::Data PhidgetGPS::getData() {
+    boost::mutex::scoped_lock lock(lock_);
+
+    phidget_gps::Data data;
+    data.header.stamp = ros::Time::now();
+    data.fix_status = fix_status_;
+    data.latitude = latitude_;
+    data.longitude = longitude_;
+    data.altitude = altitude_;
+    data.is_velocity_valid = is_velocity_valid_;
+    data.velocity = velocity_;
+    data.is_heading_valid = is_heading_valid_;
+    data.heading = heading_;
+    std::cerr << "latitude: " << latitude_ << "longitude: " << longitude_ << std::endl;
+
+    return data;
+}
+
+int PhidgetGPS::AttachHandler(CPhidgetHandle handle, void* useptr) {
+    int serial_number;
+    CPhidget_getSerialNumber(handle, &serial_number);
+    ROS_INFO("GPS %10d attached", serial_number);
+
+    return 0;
+}
+
+int PhidgetGPS::DetachHandler(CPhidgetHandle handle, void* useptr) {
+    int serial_number;
+    CPhidget_getSerialNumber(handle, &serial_number);
+    ROS_INFO("GPS %10d detached", serial_number);
+
+    return 0;
+}
+
+int PhidgetGPS::ErrorHandler(CPhidgetHandle handle,
+        void* useptr, int error_code, const char *description) {
+    ROS_ERROR("Phidget Error: %i - %s", error_code, description);
+
+    return 0;
+}
+
+int PhidgetGPS::PositionChangeHandler(CPhidgetGPSHandle handle,
+        void* useptr, double latitude, double longitude, double altitude) {
+    boost::mutex::scoped_lock(lock_);
+
+    latitude_ = latitude;
+    longitude_ = longitude;
+    altitude_ = altitude;
+
+    is_velocity_valid_ = !(CPhidgetGPS_getVelocity(handle, &velocity_));
+    if (is_velocity_valid_) {
+        velocity_ *= 0.278; //Scalar conversion velocity from km/h to m/s
+    }
+
+    is_heading_valid_ = !(CPhidgetGPS_getHeading(handle, &heading_));
+
+    return 0;
+}
+
+int PhidgetGPS::FixChangeHandler(CPhidgetGPSHandle handle,
+        void* useptr, int status) {
+    boost::mutex::scoped_lock(lock_);
+    fix_status_ = (bool)status;
+
+    return 0;
+}

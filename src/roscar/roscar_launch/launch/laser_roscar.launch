@@ -1,0 +1,50 @@
+<launch>
+  
+    <node pkg="maestro"
+        type="maestro_node"
+        name="maestro_node" >
+        <param name="device" value="/dev/ttyACM1"/>
+        <param name="drive_channel" value="3"/>
+        <param name="steering_channel" value="1"/>
+        <param name="loop_rate" value="20.0"/>
+        <param name="steer_change_rate" value="50.0"/>
+        <param name="drive_change_rate" value="50.0"/>
+    </node>
+
+    <node pkg="maestro"
+        type="converter_node"
+        name="converter_node" >
+        <param name="motor_config" value="$(find roscar_launch)/config/correctMotorConfig.txt"/> 
+        <param name="servo_config" value="$(find roscar_launch)/config/correctedServoConfig.txt"/>  
+        <param name="loop_rate" value="20.0"/>
+        <param name="kp" value="0.5"/>
+    </node>
+   
+    <node pkg="utm_laser"
+        type="UtmLaser"
+        name="UtmLaser">
+        <param name="loop_rate" value="20.0"/>
+        <param name="target_max_change" value="0.50"/>	
+        <param name="min_detection_width" value="0.005"/>	
+        <param name="max_detection_width" value="0.5"/>	
+	
+    </node>
+
+    <node pkg="planner"
+        type="laser_following_node"
+        name="laser_following_node"
+        output="screen">  
+        <param name="goal_radius" value="1.0"/>
+        <param name="vel_ratio" value="0.75"/>
+        <param name="time_horizon" value="1.0"/>
+        <param name="time_slice" value="0.05"/>
+        <param name="omega_resolution" value="0.1"/>
+        <param name="cost_const_k" value="2.0"/>
+        <param name="radius_min" value="0.5"/>
+        <param name="braking_speed" value="-5.0"/>	
+        <param name="loop_rate" value="20.0"/>
+     </node>
+ 
+
+   
+</launch>

@@ -1,0 +1,91 @@
+<launch>
+  
+    <node pkg="maestro"
+        type="maestro_node"
+        name="maestro_node" >
+        <param name="device" value="/dev/ttyACM0"/>
+        <param name="drive_channel" value="3"/>
+        <param name="steering_channel" value="1"/>
+        <param name="loop_rate" value="10.0"/>
+        <param name="steer_change_rate" value="50.0"/>
+        <param name="drive_change_rate" value="0.0"/>
+    </node>
+
+    <node pkg="maestro"
+        type="converter_node"
+        name="converter_node" >
+        <param name="motor_config" value="/home/nuccar/roscar_ws/src/roscar/maestro/src/correctMotorConfig.txt"/>
+        <param name="servo_config" value="/home/nuccar/roscar_ws/src/roscar/maestro/src/servoConfig2.txt"/>
+        <param name="loop_rate" value="10.0"/>
+    </node>
+
+    <!-- <node pkg="controller"
+        type="xbox_controller_node"
+        name="xbox_controller_node" >
+    </node>
+
+    <node pkg="controller"
+        type="exact_maestro_publisher"
+        name="exact_maestro_publisher" >
+    </node> 
+
+    <node pkg="controller"
+        type="PW_publisher"
+        name="PW_publisher" >
+    </node>
+
+    <node pkg="joy"
+        type="joy_node"
+        name="joy_node" >
+    </node>   -->
+
+    <node pkg="phidget_encoder"
+        type="phidget_encoder_node"
+        name="phidget_encoder_node" >
+        <param name="loop_rate" value="10.0"/>
+    </node>
+
+    <node pkg="phidget_gps"
+        type="phidget_gps_node"
+        name="phidget_gps_node" >
+        <param name="loop_rate" value="10.0"/>
+    </node>
+
+    <node pkg="phidget_spatial"
+        type="phidget_spatial_node"
+        name="phidget_spatial_node">
+        <param name="loop_rate" value="10.0"/>
+    </node>
+
+    <!-- <node pkg="odometry"
+        type="open_loop_odometry"
+        name="open_loop_odometry">
+        <param name="loop_rate" value="10.0"/>
+    </node> -->  
+
+    <node pkg="odometry"
+        type="odometry_node"
+        name="odometry_node">
+        <param name="loop_rate" value="10.0"/>
+        <param name="sigma_x" value="0.02"/>
+        <param name="sigma_y" value="0.02"/>
+        <param name="sigma_theta" value="0.2"/>
+        <param name="sigma_northing" value="7.5"/>
+        <param name="sigma_easting" value="7.5"/>
+        <param name="sigma_heading" value="1.5"/>
+        <param name="careAboutGPS" value="false"/>
+    </node>
+
+    <!-- <node pkg="planner"
+        type="gps_waypoint_following_node"
+        name="gps_waypoint_following_node">
+        <param name="tolerance" value="0.5"/>
+        <param name="velocity" value="2.5"/>
+        <param name="timeHorizon" value="0.5"/>
+        <param name="waypointFilename" value="/home/nuccar/roscar_ws/src/roscar/planner/src/indoorWaypoints.txt"/>
+        <param name="loop_rate" value="10.0"/>
+        <param name="thetaRange" value="2.0"/>
+        <param name="thetaResolution" value="0.1"/>
+    </node> -->
+    
+</launch>

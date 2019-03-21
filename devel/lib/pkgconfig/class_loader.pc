@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: class_loader
+Description: Description of class_loader
+Version: 0.4.1
+Cflags: -I/home/nuccar/roscar_2018/src/roscar/class_loader/include -I/usr/include
+Libs: -L/home/nuccar/roscar_2018/devel/lib -lclass_loader -l:/usr/lib/x86_64-linux-gnu/libboost_thread.so -l:/usr/lib/x86_64-linux-gnu/libboost_system.so -l:/usr/lib/libPocoFoundation.so -ldl -l:/usr/lib/x86_64-linux-gnu/libconsole_bridge.so
+Requires: 

@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: base_local_planner
+Description: Description of base_local_planner
+Version: 1.15.2
+Cflags: -I/home/nuccar/roscar_2018/devel/include -I/home/nuccar/roscar_2018/src/roscar/navigation/base_local_planner/include
+Libs: -L/home/nuccar/roscar_2018/devel/lib -lbase_local_planner -ltrajectory_planner_ros
+Requires: angles costmap_2d dynamic_reconfigure geometry_msgs message_runtime nav_core nav_msgs pluginlib roscpp std_msgs tf

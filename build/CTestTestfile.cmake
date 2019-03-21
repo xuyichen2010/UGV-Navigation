@@ -1,0 +1,37 @@
+# CMake generated Testfile for 
+# Source directory: /home/nuccar/roscar_2018/src
+# Build directory: /home/nuccar/roscar_2018/build
+# 
+# This file includes the relevant testing commands required for 
+# testing this directory and lists subdirectories to be tested as well.
+subdirs("gtest")
+subdirs("roscar/navigation/navigation")
+subdirs("roscar/roscar")
+subdirs("roscar/roscar_launch")
+subdirs("roscar/phidget_encoder")
+subdirs("roscar/phidget_gps")
+subdirs("roscar/phidget_spatial")
+subdirs("roscar/maestro")
+subdirs("roscar/point_cloud")
+subdirs("roscar/navigation/map_server")
+subdirs("roscar/controller")
+subdirs("roscar/bag_utilities")
+subdirs("realsense/realsense2_camera")
+subdirs("roscar/navigation/amcl")
+subdirs("roscar/navigation/fake_localization")
+subdirs("roscar/navigation_goals")
+subdirs("roscar/odometry")
+subdirs("roscar/utm_laser")
+subdirs("roscar/planner")
+subdirs("roscar/navigation/voxel_grid")
+subdirs("roscar/navigation/costmap_2d")
+subdirs("roscar/navigation/nav_core")
+subdirs("roscar/navigation/base_local_planner")
+subdirs("roscar/navigation/carrot_planner")
+subdirs("roscar/navigation/clear_costmap_recovery")
+subdirs("roscar/navigation/dwa_local_planner")
+subdirs("roscar/navigation/move_slow_and_clear")
+subdirs("roscar/navigation/navfn")
+subdirs("roscar/navigation/global_planner")
+subdirs("roscar/navigation/rotate_recovery")
+subdirs("roscar/navigation/move_base")

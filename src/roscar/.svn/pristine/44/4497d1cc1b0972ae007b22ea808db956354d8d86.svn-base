@@ -1,0 +1,94 @@
+#include "ros/ros.h"
+#include "maestro/VelAndAngle.h"
+#include <sensor_msgs/Joy.h>
+
+#include <iostream>
+
+using namespace std;
+
+class XboxControllerNode {
+public:
+    XboxControllerNode(ros::NodeHandle, ros::NodeHandle);
+    void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg);
+    void run();
+private:
+    ros::NodeHandle nh_;
+    ros::NodeHandle private_nh_;
+    ros::Publisher converterCommand;
+    ros::Subscriber readJoystick;
+    double throttle;
+    double turning;
+
+    // disable assignment and copy constructor
+    XboxControllerNode& operator=(const XboxControllerNode&);
+    XboxControllerNode(const XboxControllerNode&);
+};
+
+XboxControllerNode::XboxControllerNode(
+        ros::NodeHandle nh,
+        ros::NodeHandle private_nh) :
+    nh_(nh),
+    private_nh_(private_nh)
+{
+    throttle = 0;
+    turning = 0;
+    converterCommand = nh_.advertise<maestro::VelAndAngle>("converter_in", 10);
+    readJoystick = nh_.subscribe<sensor_msgs::Joy>("joy", 10, &XboxControllerNode::joystickCallback, this);
+}
+
+void XboxControllerNode::joystickCallback(const sensor_msgs::Joy::ConstPtr& msg){
+    throttle = msg->axes[1]; 
+    turning = msg->axes[3];
+    turning *= -1; //account for direction change in PWM
+    
+    //below if statements map our controller input to usable m/s range for robot
+    if(throttle>=0.1 && throttle<=1.0){
+        //start at 0.1 to eliminate noise
+        //maps (0.1-1.0) to (0-10)m/s
+        throttle = (throttle-0.1)*11.11;
+    }
+    else{
+        throttle = 0;
+    }
+    //maps radio input to rad/s
+    if(turning>=0.2 && turning<=1.0){
+        turning = (turning-0.2)*3.125;
+    }
+    else if(turning>=(-1.0) && turning<=(-0.2)){
+        turning = (turning+0.2)*3.125;    
+    }
+    else{
+        turning = 0;
+    }
+
+    //now publish
+    maestro::VelAndAngle msg2;
+    msg2.velocity = throttle;
+    msg2.angle = turning;
+    converterCommand.publish(msg2);
+    
+}
+
+void XboxControllerNode::run() {
+    ros::spin();
+}
+
+int main(int argc, char **argv)
+{
+    ros::init(argc, argv, "xbox_controller_node");
+    ros::NodeHandle nh;
+    ros::NodeHandle private_nh("~");
+
+    try {
+        XboxControllerNode xcn(nh, private_nh);
+        xcn.run();
+    }
+    catch(std::runtime_error ex) {
+        ROS_ERROR("%s", ex.what());
+        return -1;
+    }
+
+    return 0;
+}
+
+

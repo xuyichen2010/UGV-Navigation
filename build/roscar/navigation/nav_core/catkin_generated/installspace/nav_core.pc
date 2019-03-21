@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/install
+
+Name: nav_core
+Description: Description of nav_core
+Version: 1.15.2
+Cflags: -I/home/nuccar/roscar_2018/install/include
+Libs: -L/home/nuccar/roscar_2018/install/lib 
+Requires: std_msgs geometry_msgs tf costmap_2d

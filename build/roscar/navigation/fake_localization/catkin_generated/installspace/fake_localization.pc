@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/install
+
+Name: fake_localization
+Description: Description of fake_localization
+Version: 1.15.2
+Cflags: 
+Libs: -L/home/nuccar/roscar_2018/install/lib 
+Requires: geometry_msgs nav_msgs roscpp rospy

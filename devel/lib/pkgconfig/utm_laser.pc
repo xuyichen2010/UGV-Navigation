@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: utm_laser
+Description: Description of utm_laser
+Version: 0.0.0
+Cflags: -I/home/nuccar/roscar_2018/devel/include -I/home/nuccar/roscar_2018/src/roscar/utm_laser/include
+Libs: -L/home/nuccar/roscar_2018/devel/lib -lutm_laser_lib
+Requires: message_runtime roscpp laser_geometry visualization_msgs

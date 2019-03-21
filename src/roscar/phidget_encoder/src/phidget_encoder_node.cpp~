@@ -1,0 +1,62 @@
+#include "ros/ros.h"
+#include "phidget_encoder/PhidgetEncoder.h"
+#include "phidget_encoder/Ticks.h"
+
+class PhidgetEncoderNode {
+public:
+    PhidgetEncoderNode(ros::NodeHandle, ros::NodeHandle);
+    void run();
+    //~PhidgetEncoderNode();
+private:
+    PhidgetEncoder pe_;
+    ros::NodeHandle nh_;
+    ros::NodeHandle private_nh_;
+    ros::Publisher out_;
+    double loop_rate_;
+};
+
+PhidgetEncoderNode::PhidgetEncoderNode(
+        ros::NodeHandle nh,
+        ros::NodeHandle private_nh) :
+    nh_(nh),
+    private_nh_(private_nh)
+{
+	
+	std::cerr << "Hello1.2" << std::endl;
+	//pe_ = new PhidgetEncoder();
+    private_nh_.param("loop_rate", loop_rate_, 10.0); 
+    out_ = nh_.advertise<phidget_encoder::Ticks>("ticks", 10);
+}
+/*
+PhidgetEncoderNode::~PhidgetEncoderNode() {
+    //m_->goHome();
+    delete pe_;
+}*/
+void PhidgetEncoderNode::run() {
+    ros::Rate loop_rate(loop_rate_);
+    while (ros::ok()) {
+        phidget_encoder::Ticks ticks = pe_.getTicks();
+        out_.publish(ticks);
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
+}
+
+int main(int argc, char** argv) {
+	std::cerr << "Encoder: " << std::endl;
+    ros::init(argc, argv, "phidget_encoder_node");
+    ros::NodeHandle nh;
+    ros::NodeHandle private_nh("~");
+    try {
+    	std::cerr << "Encoder1: " << std::endl;
+        PhidgetEncoderNode pen(nh, private_nh);
+        std::cerr << "Encoder2: " << std::endl;
+        pen.run();
+    }
+    catch(std::runtime_error ex) {
+        ROS_ERROR("%s", ex.what());
+        return -1;
+    }
+
+    return 0;
+}

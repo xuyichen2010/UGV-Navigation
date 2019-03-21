@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/install
+
+Name: phidget_spatial
+Description: Description of phidget_spatial
+Version: 0.0.0
+Cflags: -I/home/nuccar/roscar_2018/install/include
+Libs: -L/home/nuccar/roscar_2018/install/lib -lPhidgetSpatial
+Requires: roscpp message_runtime

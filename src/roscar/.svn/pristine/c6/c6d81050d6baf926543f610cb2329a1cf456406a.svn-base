@@ -1,0 +1,116 @@
+#include "phidget_spatial/PhidgetSpatial.h"
+#include <stdexcept>
+#include "ros/ros.h"
+
+PhidgetSpatial::PhidgetSpatial() :
+    handle_(0)
+{
+    CPhidgetSpatial_create(&handle_);
+
+    // set up handlers
+    CPhidget_set_OnAttach_Handler((CPhidgetHandle)handle_,
+            PhidgetSpatial::AttachHandler, NULL);
+    CPhidget_set_OnDetach_Handler((CPhidgetHandle)handle_,
+            PhidgetSpatial::DetachHandler, NULL);
+    CPhidget_set_OnError_Handler((CPhidgetHandle)handle_,
+            PhidgetSpatial::ErrorHandler, NULL);
+    CPhidgetSpatial_set_OnSpatialData_Handler(handle_,
+            PhidgetSpatial::SpatialDataHandler, NULL);
+
+    // open device
+    CPhidget_open((CPhidgetHandle)handle_, -1);
+    int result;
+    if ((result = CPhidget_waitForAttachment((CPhidgetHandle)handle_, 10000))) {
+        const char *err;
+        CPhidget_getErrorDescription(result, &err);
+
+        // clean up
+        CPhidget_close((CPhidgetHandle)handle_);
+        CPhidget_delete((CPhidgetHandle)handle_);
+
+        throw std::runtime_error(err);
+    }
+}
+
+PhidgetSpatial::~PhidgetSpatial() {
+    CPhidget_close((CPhidgetHandle)handle_);
+    CPhidget_delete((CPhidgetHandle)handle_);
+}
+
+phidget_spatial::Inertia PhidgetSpatial::getInertia() {
+    phidget_spatial::Inertia inertia;
+    inertia.header.stamp = ros::Time::now();
+    inertia.timeSecs = time_secs_;
+    inertia.timeMilliSecs = time_milli_secs_;
+    inertia.xAccel = x_accel_;
+    inertia.yAccel = y_accel_;
+    inertia.zAccel = z_accel_;
+    inertia.xAngular = x_angular_;
+    inertia.yAngular = y_angular_;
+    inertia.zAngular = z_angular_;
+    inertia.xMagField = x_mag_field_;
+    inertia.yMagField = y_mag_field_;
+    inertia.zMagField = z_mag_field_;
+
+
+    // reset
+    {
+        boost::mutex::scoped_lock lock(lock_);
+        time_secs_ = 0;
+        time_milli_secs_ = 0;
+        x_accel_ = 0;
+        y_accel_ = 0;
+        z_accel_ = 0;
+        x_angular_ = 0;
+        y_angular_ = 0;
+        z_angular_ = 0;
+        x_mag_field_ = 0;
+        y_mag_field_ = 0;
+        z_mag_field_ = 0;
+    }
+
+    return inertia;
+}
+
+int PhidgetSpatial::AttachHandler(CPhidgetHandle handle, void* useptr) {
+    int serial_number;
+    CPhidget_getSerialNumber(handle, &serial_number);
+    ROS_INFO("IMU %10d attached", serial_number);
+
+    return 0;
+}
+
+int PhidgetSpatial::DetachHandler(CPhidgetHandle handle, void* useptr) {
+    int serial_number;
+    CPhidget_getSerialNumber(handle, &serial_number);
+    ROS_INFO("IMU %10d detached", serial_number);
+
+    return 0;
+}
+
+int PhidgetSpatial::ErrorHandler(CPhidgetHandle handle,
+        void* useptr, int error_code, const char *description) {
+    ROS_ERROR("Phidget Error: %i - %s", error_code, description);
+
+    return 0;
+}
+
+int PhidgetSpatial::SpatialDataHandler(CPhidgetSpatialHandle phid, void *userptr, CPhidgetSpatial_SpatialEventDataHandle *data, int count)
+{
+
+    //data[0] only handles first device, refer to phidgets examples library to loop through more than once device
+    boost::mutex::scoped_lock(lock_);
+    time_secs_ = data[0]->timestamp.seconds;
+    time_milli_secs_ = data[0]->timestamp.microseconds;
+    x_accel_ = data[0]->acceleration[0];
+    y_accel_ = data[0]->acceleration[1];
+    z_accel_ = data[0]->acceleration[2];
+    x_angular_ = data[0]->angularRate[0];
+    y_angular_ = data[0]->angularRate[1];
+    z_angular_ = data[0]->angularRate[2];
+    x_mag_field_ = data[0]->magneticField[0];
+    y_mag_field_ = data[0]->magneticField[1];
+    z_mag_field_ = data[0]->magneticField[2];
+
+	return 0;
+}

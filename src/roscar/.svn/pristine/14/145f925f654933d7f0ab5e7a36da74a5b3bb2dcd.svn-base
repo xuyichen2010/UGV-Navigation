@@ -1,0 +1,128 @@
+#include "ros/ros.h"
+#include <tf/transform_broadcaster.h>
+
+#include "maestro/VelAndAngle.h"
+#include "nav_msgs/Odometry.h"
+
+#include <iostream>
+#include <cmath>
+
+using namespace std;
+
+class OdometryNode {
+public:
+    OdometryNode(ros::NodeHandle, ros::NodeHandle);
+    void converterCallback(const maestro::VelAndAngle::ConstPtr&);
+    void run();
+
+private:
+    ros::NodeHandle nh_;
+    ros::NodeHandle private_nh_;
+    ros::Subscriber readConverter;
+    ros::Publisher pushOdometry;
+    double loop_rate_;
+
+    double xCurr;
+    double yCurr;
+    double thetaCurr;
+
+    double lastTime;
+
+    // disable assignment and copy constructor
+    OdometryNode& operator=(const OdometryNode&);
+    OdometryNode(const OdometryNode&);
+};
+
+OdometryNode::OdometryNode(
+        ros::NodeHandle nh, 
+        ros::NodeHandle private_nh) :
+    nh_(nh),
+    private_nh_(private_nh)
+{
+    private_nh_.param("loop_rate", loop_rate_, 10.0);
+    readConverter = nh_.subscribe("converter_out", 10, &OdometryNode::converterCallback, this);
+    pushOdometry = nh_.advertise<nav_msgs::Odometry>("open_loop_odometry", 10);
+
+    xCurr = 0;
+    yCurr = 0;
+    thetaCurr = 0;
+
+    lastTime = ros::Time::now().toSec();
+}
+
+
+void OdometryNode::converterCallback(const maestro::VelAndAngle::ConstPtr& msg) {
+    
+    double vel = msg->velocity;
+    double angVel = msg->angle;
+
+    double currTime = msg->currTime;
+    double dt = currTime - lastTime;
+
+    //update lastTime
+    lastTime = currTime;
+
+    double dtheta;
+    double xPrime;
+    double yPrime;
+    double thetaPrime;
+
+    //calculate x, y, theta
+    dtheta = -1 * angVel * dt;
+    xPrime = xCurr + ( vel * ( cos ( thetaCurr + (dtheta/2.0) ) ) );
+    yPrime = yCurr + ( vel * ( sin ( thetaCurr + (dtheta/2.0) ) ) );
+    thetaPrime = thetaCurr + dtheta;
+
+    //update our pose
+    xCurr = xPrime;
+    yCurr = yPrime;
+    thetaCurr = thetaPrime;
+    
+    //publish xPrime,yPrime,thetaPrime (open loop version)
+    nav_msgs::Odometry msg2;
+    msg2.pose.pose.position.x = xPrime;
+    msg2.pose.pose.position.y = yPrime;
+    msg2.pose.pose.position.z = 0.0;
+
+    //set the twist
+    msg2.twist.twist.linear.x = vel;
+    msg2.twist.twist.angular.z = angVel;
+    
+    //turn our yaw into a quaternion
+    tf::Quaternion q;
+    q.setRPY(0,0,thetaPrime); //roll = 0, pitch = 0, yaw = thetaPrime
+    geometry_msgs::Quaternion odom_quat;
+    tf::quaternionTFToMsg(q, odom_quat);  
+
+    //set our quaternion
+    msg2.pose.pose.orientation = odom_quat;
+
+    //publish the message finally
+    pushOdometry.publish(msg2);
+
+}
+
+void OdometryNode::run() {
+    ros::Rate loop_rate(loop_rate_);
+    ros::spin();
+}
+
+int main(int argc, char** argv) {
+    ros::init(argc, argv, "odometry_node");
+    ros::NodeHandle nh;
+    ros::NodeHandle private_nh("~");
+
+    try {
+        OdometryNode cn(nh, private_nh);
+        cn.run();
+    }
+    catch(std::runtime_error ex) {
+        ROS_ERROR("%s", ex.what());
+        return -1;
+    }
+
+    return 0;
+}
+
+
+

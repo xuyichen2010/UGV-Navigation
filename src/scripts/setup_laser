@@ -1,0 +1,8 @@
+#!/bin/bash
+
+sudo chmod a+rw /dev/ttyACM0
+rosparam set hokuyo_node/intensity true
+rosparam set hokuyo_node/min_ang -2.2689
+rosparam set hokuyo_node/max_ang 2.2689
+rosparam set hokuyo_node/allow_unsafe_settings true
+rosrun hokuyo_node hokuyo_node

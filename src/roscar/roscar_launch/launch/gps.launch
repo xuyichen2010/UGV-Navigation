@@ -1,0 +1,9 @@
+<launch>
+
+    <node pkg="phidget_gps"
+        type="phidget_gps_node"
+        name="phidget_gps_node" >
+        <param name="loop_rate" value="10.0"/>
+    </node>
+
+</launch>

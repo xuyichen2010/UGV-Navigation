@@ -1,0 +1,126 @@
+#!/usr/bin/env python
+
+import rospy
+import rosbag
+import sys
+import math
+
+import nav_msgs
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+if __name__ == '__main__':
+
+
+    np.set_printoptions(threshold=np.nan)
+
+    if len(sys.argv) != 2:
+        print 'Usage: python plotOpenLoop.py <bagfile>'
+        exit()
+
+    bag = rosbag.Bag(sys.argv[1], 'r')
+    topics = ['/open_loop_odometry', '/converter_out', '/maestro_out', '/maestro_in', '/joy', '/converter_in']
+    data = []
+    data2 = []
+    data3 = []
+    data4 = []
+    data5 = []
+    data6 = []
+        
+    count = 1
+
+    for topic, msg, t, in bag.read_messages(topics=topics):
+        if topic == "/open_loop_odometry":
+
+            x = msg.pose.pose.position.x
+            y = msg.pose.pose.position.y
+            
+            data.append([x, y])
+
+        if topic == "/converter_out":
+            vel = msg.velocity
+            ang = msg.angle
+
+            count += 1
+
+            data2.append([vel,ang,count])
+
+        if topic == "/maestro_out":
+            data3.append([msg.drive_position, msg.steering_position])
+
+        if topic == "/maestro_in":
+            data4.append([msg.drive_position, msg.steering_position])
+
+        if topic == "/joy":
+            data5.append([msg.axes[5],msg.axes[0]])
+            
+
+        if topic == "/converter_in":
+            data6.append([msg.velocity, msg.angle])
+
+    data = np.array(data)
+    data2 = np.array(data2)
+    data3 = np.array(data3)
+    data4 = np.array(data4)
+    data5 = np.array(data5)
+    data6 = np.array(data6)
+ 
+    x = data[:,0]
+    y = data[:,1]
+
+    velocityArr = data2[:,0]
+    angularArr = data2[:,1]
+    countArr = data2[:,2]
+
+    driveP = data3[:,0]
+    steerP = data3[:,1]
+
+    driveP2 = data4[:,0]
+    steerP2 = data4[:,1]
+
+    throttle = data5[:,0]
+    steeringJoy = data5[:,1]
+
+    converterIn = data6[:,0]
+
+
+    print x
+    print len(x)
+
+    fig, ax = plt.subplots()
+    fig, bx = plt.subplots()
+    fig, cx = plt.subplots()
+    fig, dx = plt.subplots()
+    fig, ex = plt.subplots()
+    fig, fx = plt.subplots()
+    fig, gx = plt.subplots()
+    fig, hx = plt.subplots()
+    fig, ix = plt.subplots()
+    fig, jx = plt.subplots()
+
+    ax.plot(x,y,'bo')
+    bx.plot(velocityArr, 'yo')
+    cx.plot(driveP, 'co')
+    dx.plot(driveP2, 'mo')
+    ex.plot(throttle, 'bo')
+    fx.plot(converterIn, 'ro')
+    gx.plot(steerP, 'go')
+    hx.plot(steerP2, 'bo')
+    ix.plot(steeringJoy,'yo')
+    jx.plot(angularArr, 'ro')
+
+    ax.set_title('XY Position')
+    bx.set_title('Converter Out Vel')
+    cx.set_title('Maestro Out Vel PW')
+    dx.set_title('Maestro In Vel PW')
+    ex.set_title('Joystick Vel')
+    fx.set_title('Converter In Vel')
+    gx.set_title('Maestro Out Ang PW')
+    hx.set_title('Maestro In Ang PW')
+    ix.set_title('Joystick Ang')
+    jx.set_title('Converter Out Ang')
+
+    ax.axis('equal')
+    plt.show()
+

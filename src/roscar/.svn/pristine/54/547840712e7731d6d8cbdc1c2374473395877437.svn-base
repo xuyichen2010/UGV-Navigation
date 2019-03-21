@@ -1,0 +1,12 @@
+Header header
+float64 timeSecs
+float64 timeMicroSecs
+float64 xAccel
+float64 yAccel
+float64 zAccel
+float64 xAngular
+float64 yAngular
+float64 zAngular
+float64 xMagField
+float64 yMagField
+float64 zMagField

@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: map_server
+Description: Description of map_server
+Version: 1.15.2
+Cflags: -I/home/nuccar/roscar_2018/src/roscar/navigation/map_server/include
+Libs: -L/home/nuccar/roscar_2018/devel/lib -lmap_server_image_loader
+Requires: roscpp nav_msgs tf2

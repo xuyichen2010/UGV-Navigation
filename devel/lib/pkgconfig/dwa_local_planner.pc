@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: dwa_local_planner
+Description: Description of dwa_local_planner
+Version: 1.15.2
+Cflags: -I/home/nuccar/roscar_2018/devel/include -I/home/nuccar/roscar_2018/src/roscar/navigation/dwa_local_planner/include
+Libs: -L/home/nuccar/roscar_2018/devel/lib -ldwa_local_planner
+Requires: dynamic_reconfigure nav_msgs pluginlib roscpp

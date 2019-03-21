@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/install
+
+Name: phidget_encoder
+Description: Description of phidget_encoder
+Version: 0.0.0
+Cflags: -I/home/nuccar/roscar_2018/install/include
+Libs: -L/home/nuccar/roscar_2018/install/lib -lPhidgetEncoder
+Requires: message_runtime roscpp

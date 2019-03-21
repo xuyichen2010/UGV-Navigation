@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: clear_costmap_recovery
+Description: Description of clear_costmap_recovery
+Version: 1.15.2
+Cflags: -I/home/nuccar/roscar_2018/src/roscar/navigation/clear_costmap_recovery/include
+Libs: -L/home/nuccar/roscar_2018/devel/lib -lclear_costmap_recovery
+Requires: costmap_2d nav_core pluginlib roscpp tf

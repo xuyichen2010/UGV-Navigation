@@ -1,0 +1,7 @@
+<launch>
+    <node pkg="phidget_encoder"
+        type="phidget_encoder_node"
+        name="phidget_encoder_node" >
+        <param name="loop_rate" value="10.0"/>
+    </node>
+</launch>

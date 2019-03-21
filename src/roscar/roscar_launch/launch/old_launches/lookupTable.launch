@@ -1,0 +1,37 @@
+<launch>
+  
+    <node pkg="maestro"
+        type="maestro_node"
+        name="maestro_node" >
+        <param name="device" value="/dev/ttyACM0"/>
+        <param name="drive_channel" value="3"/>
+        <param name="steering_channel" value="1"/>
+        <param name="loop_rate" value="10.0"/>
+        <param name="steer_change_rate" value="50.0"/>
+        <param name="drive_change_rate" value="0.0"/>
+    </node>
+
+    
+    <node pkg="phidget_encoder"
+        type="phidget_encoder_node"
+        name="phidget_encoder_node" >
+        <param name="loop_rate" value="10.0"/>
+    </node>
+
+    <node pkg="phidget_spatial"
+        type="phidget_spatial_node"
+        name="phidget_spatial_node">
+        <param name="loop_rate" value="10.0"/>
+    </node> 
+
+    <node pkg="controller"
+        type="exact_maestro_publisher"
+        name="exact_maestro_publisher">
+        <param name="targetAngVel" value="4000"/>
+    </node>
+
+    
+
+    
+    
+</launch>

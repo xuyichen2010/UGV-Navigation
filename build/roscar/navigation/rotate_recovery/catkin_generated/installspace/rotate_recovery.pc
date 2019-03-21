@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/install
+
+Name: rotate_recovery
+Description: Description of rotate_recovery
+Version: 1.15.2
+Cflags: -I/home/nuccar/roscar_2018/install/include
+Libs: -L/home/nuccar/roscar_2018/install/lib -lrotate_recovery
+Requires: roscpp pluginlib

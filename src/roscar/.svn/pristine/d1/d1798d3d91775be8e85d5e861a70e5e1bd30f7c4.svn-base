@@ -1,0 +1,254 @@
+#!/usr/bin/env python
+
+import rospy
+import rosbag
+import sys
+import math
+
+import nav_msgs
+
+import tf
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+import utm
+
+if __name__ == '__main__':
+
+
+    np.set_printoptions(threshold=np.nan)
+
+    if len(sys.argv) != 2:
+        print 'Usage: python plotOpenLoop.py <bagfile>'
+        exit()
+
+    #variables for our conversion
+    signConversion = -1
+    meters = 3.66 #distance taped out and measured
+    ticks = 126176 #empirically measured ten times and averaged
+    secToMs = 1000
+    mpsToMph = 2.23694
+    ticksToMph = (signConversion * meters / ticks) * secToMs #* mpsToMph 
+
+    #other conversion variables
+    circ = 0.05 * 2 * math.pi
+    ratio = -11.0/29 * 3.36 #encoder to wheel
+    matlabConv = (circ * ratio / 4096) * secToMs #* mpsToMph
+
+    bag = rosbag.Bag(sys.argv[1], 'r')
+    topics = ['/open_loop_odometry', '/converter_out', '/maestro_out', '/maestro_in', '/joy', '/converter_in', '/ticks', '/inertia', '/kalman_odometry', '/gps_data']
+    data = []
+    data2 = []
+    data3 = []
+    data4 = []
+    data5 = []
+    data6 = []
+    data7 = []
+    data8 = []
+    data9 = []
+    data10 = []
+        
+    count = 1
+
+    currentIn = 6000
+    currentInAng = 6000
+    currentConvOutVel = 0
+    currentConvOutAng = 0
+
+    for topic, msg, t, in bag.read_messages(topics=topics):
+        if topic == "/open_loop_odometry":
+
+            x = msg.pose.pose.position.x
+            y = msg.pose.pose.position.y
+            
+            data.append([x, y])
+
+        if topic == "/converter_out":
+            vel = msg.velocity
+            ang = msg.angle
+
+            currentConvOutVel = vel
+            currentConvOutAng = ang
+
+            count += 1
+
+            data2.append([vel,ang,count])
+
+        if topic == "/maestro_out":
+            data4.append([currentIn, currentInAng])
+            data3.append([msg.drive_position, msg.steering_position])
+
+        if topic == "/maestro_in":
+            currentIn = msg.drive_position
+            currentInAng = msg.steering_position
+            #data4.append([msg.drive_position, msg.steering_position])
+
+        if topic == "/joy":
+            data5.append([msg.axes[5],msg.axes[0]])
+            
+
+        if topic == "/converter_in":
+            data6.append([msg.velocity, msg.angle])
+
+        if topic == "/ticks":
+
+            dx = msg.relative_change
+            dt = msg.elapsed_time
+            #if we have dt = 0 skip this data point
+            if dt == 0:
+                continue
+            ticksPerMillisecond = dx / dt
+            ourConv = ticksPerMillisecond * ticksToMph
+            theirConv = ticksPerMillisecond * matlabConv
+            time = t.secs
+
+            data7.append([ourConv, theirConv, currentConvOutVel])
+
+        if topic == "/inertia":
+            radAng = (msg.zAngular * math.pi) / 180.0
+            data8.append([radAng, currentConvOutAng])
+
+        if topic == "/kalman_odometry":
+
+            x = msg.pose.pose.position.x
+            y = msg.pose.pose.position.y
+
+            #type(pose) = geometry_msgs.msg.Pose
+            quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
+            euler = tf.transformations.euler_from_quaternion(quaternion)
+            roll = euler[0]
+            pitch = euler[1]
+            yaw = euler[2]
+            
+            data9.append([x, y, yaw])
+    
+        if topic == "/gps_data":
+
+            ang = (-1 * (msg.heading - 90) ) * (np.pi / 180)
+            while(ang <= -np.pi):
+                ang += 2*np.pi
+            while(ang > np.pi):
+                ang -= 2*np.pi
+
+            data10.append([ang, msg.heading])
+
+    data = np.array(data)
+    data2 = np.array(data2)
+    data3 = np.array(data3)
+    data4 = np.array(data4)
+    data5 = np.array(data5)
+    data6 = np.array(data6)
+    data7 = np.array(data7)
+    data8 = np.array(data8)
+    data9 = np.array(data9)
+    data10 = np.array(data10)
+ 
+    #x = data[:,0]
+    #y = data[:,1]
+
+    convOutVel = data2[:,0]
+    convOutAng = data2[:,1]
+    countArr = data2[:,2]
+
+    driveP = data3[:,0]
+    steerP = data3[:,1]
+
+    driveP2 = data4[:,0]
+    steerP2 = data4[:,1]
+
+    #throttle = data5[:,0]
+    #steeringJoy = data5[:,1]
+
+    #converterIn = data6[:,0]
+
+    ourConvArr = data7[:,0]
+    theirConvArr = data7[:,1]
+    convOutArr = data7[:,2]
+
+    convAngData = data8[:,1]
+    imuAngData = data8[:,0]
+
+    kfX = data9[:,0]
+    kfY = data9[:,1]
+
+    yawArr = data9[:,2]
+
+    GPSAngArr = data10[:,0]
+    GPSHeadingArr = data10[:,1]
+
+    #print kfX
+    #print len(kfX)
+
+    fig, ax = plt.subplots()
+    ax.plot(kfX,kfY,'bo')
+    ax.set_title('XY Position')
+
+    kfOdom = zip(kfX,kfY)
+    print "latitude, longitude"
+    for k in kfOdom:
+        point = utm.to_latlon(k[0], k[1], 18, 'T') 
+        print str(point[0]) + "," + str(point[1])
+
+
+    #fig, bx = plt.subplots()
+    #bx.plot(convOutVel, 'yo')
+    #bx.set_title('Converter Out Vel')
+    
+    #fig, cx = plt.subplots()
+    #cx.plot(driveP, 'co', driveP2, 'ro')
+    #cx.set_title('Maestro Out Vel PW')
+    
+    #fig, dx = plt.subplots()
+    #dx.plot(driveP2, 'mo')
+    #dx.set_title('Maestro In Vel PW')
+    
+    #fig, ex = plt.subplots()
+    #ex.plot(throttle, 'bo')
+    #ex.set_title('Joystick Vel')
+    
+    #fig, fx = plt.subplots()
+    #fx.plot(converterIn, 'ro')
+    #fx.set_title('Converter In Vel')
+    
+    #fig, gx = plt.subplots()
+    #gx.plot(steerP, 'go', steerP2, 'yo')
+    #gx.set_title('Maestro Out Ang PW')
+    
+    #fig, hx = plt.subplots()
+    #hx.plot(steerP2, 'bo')
+    #hx.set_title('Maestro In Ang PW')
+    
+    #fig, ix = plt.subplots()
+    #ix.plot(steeringJoy,'yo')
+    #ix.set_title('Joystick Ang')
+    
+    #fig, jx = plt.subplots()
+    #jx.plot(convOutAng, 'ro')
+    #jx.set_title('Converter Out Ang')
+
+    #fig, kx = plt.subplots()
+    #kx.plot(convOutArr, 'bo', ourConvArr, 'go')
+    #kx.set_title('Converter Out, Our Vel Conversion, Their Vel Conversion')
+
+    #fig, lx = plt.subplots()
+    #lx.plot(convAngData, 'bo', imuAngData, 'go')
+    #lx.set_title('Converter Out Ang, IMU Ang')
+
+    fig, mx = plt.subplots()
+    mx.plot(yawArr, 'go')
+    mx.set_title('Yaw')
+
+    fig, nx = plt.subplots()
+    nx.plot(GPSAngArr, 'ro')
+    nx.set_title('GPS Heading Converted')
+
+    start = 120
+    end = 220
+
+    #mean = np.mean(data7[start:end,0])
+    #print "Mean: " + str(mean) + "\n"
+    
+    ax.axis('equal')
+    plt.show()
+

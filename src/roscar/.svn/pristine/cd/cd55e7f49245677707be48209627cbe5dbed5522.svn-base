@@ -1,0 +1,39 @@
+#include "ros/ros.h"
+#include "maestro/VelAndAngle.h"
+
+#include <iostream>
+
+using namespace std;
+
+int main(int argc, char **argv)
+{
+  ros::init(argc, argv, "talker");
+
+  ros::NodeHandle n;
+
+  ros::Publisher converterCommand = n.advertise<maestro::VelAndAngle>("converter_in", 10);
+ 
+  maestro::VelAndAngle msg;
+
+  double targetSpeed = 2.0;  // in m/s
+  double targetAngle = 2.2; //in rad/s
+
+  msg.velocity = targetSpeed;
+  msg.angle = targetAngle;
+
+  ros::Duration(0.5).sleep();
+
+  converterCommand.publish(msg);
+  cout << "publish 1" << endl;
+
+  cout << "before sleep" << endl;
+  ros::Duration(5).sleep(); //sleep for 10 seconds
+  cout << "after sleep" << endl;  
+
+  msg.velocity = 0.0;
+  msg.angle = 0.0;
+  converterCommand.publish(msg);
+  cout << "publish 2" << endl;
+
+  return 0;
+}

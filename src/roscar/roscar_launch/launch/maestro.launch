@@ -1,0 +1,10 @@
+<launch>
+    <node pkg="maestro"
+        type="maestro_node"
+        name="maestro_node" >
+        <param name="device" value="/dev/ttyACM0"/>
+        <param name="drive_channel" value="3"/>
+        <param name="steering_channel" value="1"/>
+        <param name="loop_rate" value="10.0"/>
+    </node>
+</launch>

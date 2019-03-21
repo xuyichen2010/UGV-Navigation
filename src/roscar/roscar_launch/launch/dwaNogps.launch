@@ -1,0 +1,61 @@
+<launch>
+  
+    <node pkg="phidget_encoder"
+        type="phidget_encoder_node"
+        name="phidget_encoder_node" >
+        <param name="loop_rate" value="10.0"/>
+    </node>
+
+  
+
+    <node pkg="phidget_spatial"
+        type="phidget_spatial_node"
+        name="phidget_spatial_node">
+        <param name="loop_rate" value="10.0"/>
+    </node>
+
+    <node pkg="odometry"
+        type="odometry_node"
+        name="odometry_node"
+        output="screen">
+        <param name="loop_rate" value="10.0"/>
+        <param name="sigma_x" value="0.02"/>
+        <param name="sigma_y" value="0.02"/>
+        <param name="sigma_theta" value="0.01"/>
+        <param name="sigma_northing" value="9"/>
+        <param name="sigma_easting" value="9"/>
+        <param name="sigma_heading" value="0.04"/>
+        <param name="careAboutGPS" value="false"/>
+    </node>
+
+    <node pkg="point_cloud"
+	type="point_cloud_node"
+	name="point_cloud_node"
+	output="screen" >
+    </node>
+
+    <node pkg="maestro"
+        type="maestro_node"
+        name="maestro_node" output="screen">
+        <param name="device" value="/dev/ttyACM0"/>
+        <param name="drive_channel" value="3"/>
+        <param name="steering_channel" value="1"/>
+        <param name="loop_rate" value="10.0"/>
+    </node>
+
+    <node pkg="maestro"
+        type="converter_node"
+        name="converter_node" output="screen">
+        <param name="motor_config" value="$(find roscar_launch)/config/correctMotorConfig.txt"/>  <!-- /home/nuccar/roscar_2018/src/roscar/maestro/src/correctMotorConfig.txt"/> -->
+        <param name="servo_config" value="$(find roscar_launch)/config/correctedServoConfig.txt"/>  <!-- /home/nuccar/roscar_2018/src/roscar/maestro/src/servoConfig2.txt"/> -->
+        <param name="loop_rate" value="10.0"/>
+        <param name="kp" value="0.5"/>
+    </node>
+
+	
+
+   
+
+    
+
+</launch>

@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: navigation_goals
+Description: Description of navigation_goals
+Version: 0.0.0
+Cflags: -I/home/nuccar/roscar_2018/src/roscar/navigation_goals/include
+Libs: -L/home/nuccar/roscar_2018/devel/lib -lnavigation_goals
+Requires: actionlib move_base_msgs roscpp

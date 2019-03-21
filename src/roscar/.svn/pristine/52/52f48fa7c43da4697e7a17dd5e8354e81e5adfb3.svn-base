@@ -1,0 +1,24 @@
+<launch>
+    
+    <node pkg="planner"
+        type="roscar_sim"
+        name="roscar_sim"/>
+
+    
+    <node pkg="planner"
+        type="gps_waypoint_following_node"
+        name="gps_waypoint_following_node"
+        required="true"
+        output="screen">
+        <param name="tolerance" value="3.0"/>
+        <param name="velocity" value="3.0"/>
+        <param name="timeHorizon" value="2.0"/>
+        <param name="stepSize" value="10"/>
+        <param name="waypointFilename" value="$(find roscar_launch)/config/waypoint_test.txt"/>
+        <param name="loop_rate" value="10.0"/>
+        <param name="thetaRange" value="2.5"/>
+        <param name="thetaResolution" value="0.1"/>
+        <param name="skipDistance" value="0.5"/>
+    </node>
+    
+</launch>

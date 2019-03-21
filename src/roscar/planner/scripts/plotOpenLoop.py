@@ -1,0 +1,265 @@
+#!/usr/bin/env python
+
+import rospy
+import rosbag
+import sys
+import math
+
+import nav_msgs
+import utm
+
+import tf
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
+import matplotlib as mpl
+
+from numpy.linalg import norm
+
+import utm
+
+if __name__ == '__main__':
+
+    tolerance = 3.0
+
+    easting = []
+    northing = []
+    pointList = []
+    tuplePointList = []
+
+    #with open('figureEight10mApart.txt', 'r') as f:
+    with open('OutputThreeWayPoint10mApart.txt', 'r') as f:
+        for line in f:
+            if line:
+                pointList.append(line.split())
+
+    for point in pointList:
+        if(point):
+            e = float(point[0])
+            n = float(point[1])
+            easting.append(e)
+            northing.append(n)
+            tuplePointList.append( (e,n) )
+    
+
+
+    np.set_printoptions(threshold=np.nan)
+
+    if len(sys.argv) != 2:
+        print 'Usage: python plotOpenLoop.py <bagfile>'
+        exit()
+
+    #variables for our conversion
+    signConversion = -1
+    meters = 3.66 #distance taped out and measured
+    ticks = 126176 #empirically measured ten times and averaged
+    secToMs = 1000
+    mpsToMph = 2.23694
+    ticksToMph = (signConversion * meters / ticks) * secToMs #* mpsToMph 
+
+    #other conversion variables
+    circ = 0.05 * 2 * math.pi
+    ratio = -11.0/29 * 3.36 #encoder to wheel
+    matlabConv = (circ * ratio / 4096) * secToMs #* mpsToMph
+
+    bag = rosbag.Bag(sys.argv[1], 'r')
+    topics = ['/open_loop_odometry', '/converter_out', '/maestro_out', '/maestro_in', '/joy', '/converter_in', '/ticks', '/inertia', '/kalman_odometry', '/odom', '/gps_data']
+    data = []
+    data2 = []
+    data3 = []
+    data4 = []
+    data5 = []
+    data6 = []
+    data7 = []
+    data8 = []
+    data9 = []
+    data10 = []
+    IMUvsPlanner = []
+    covariance = []
+        
+    count = 1
+
+    currentIn = 6000
+    currentInAng = 6000
+    currentConvOutVel = 0
+    currentConvOutAng = 0
+
+    currentIMUAngVel = 0
+
+    for topic, msg, t, in bag.read_messages(topics=topics):
+        if topic == "/open_loop_odometry":
+
+            x = msg.pose.pose.position.x
+            y = msg.pose.pose.position.y
+            
+            data.append([x, y])
+
+        if topic == "/converter_out":
+            vel = msg.velocity
+            ang = msg.angle
+
+            currentConvOutVel = vel
+            currentConvOutAng = ang
+
+            count += 1
+
+            data2.append([vel,ang,count])
+
+        if topic == "/maestro_out":
+            data4.append([currentIn, currentInAng])
+            data3.append([msg.drive_position, msg.steering_position])
+
+        if topic == "/maestro_in":
+            currentIn = msg.drive_position
+            currentInAng = msg.steering_position
+            #data4.append([msg.drive_position, msg.steering_position])
+
+        if topic == "/joy":
+            data5.append([msg.axes[5],msg.axes[0]])
+            
+
+        if topic == "/converter_in":
+            data6.append([msg.velocity, msg.angle])
+            IMUvsPlanner.append([msg.angle, currentIMUAngVel])
+
+        if topic == "/ticks":
+
+            dx = msg.relative_change
+            dt = msg.elapsed_time
+            #if we have dt = 0 skip this data point
+            if dt == 0:
+                continue
+            ticksPerMillisecond = dx / dt
+            ourConv = ticksPerMillisecond * ticksToMph
+            theirConv = ticksPerMillisecond * matlabConv
+            time = t.secs
+
+            data7.append([ourConv, theirConv, currentConvOutVel])
+
+        if topic == "/inertia":
+            radAng = (msg.zAngular * math.pi) / 180.0
+            currentIMUAngVel = radAng
+            data8.append([radAng, currentConvOutAng])
+        
+        if topic == "/odom":
+        #if topic == "/odom":
+
+            x = msg.pose.pose.position.x
+            y = msg.pose.pose.position.y
+
+            #type(pose) = geometry_msgs.msg.Pose
+            quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
+            euler = tf.transformations.euler_from_quaternion(quaternion)
+            roll = euler[0]
+            pitch = euler[1]
+            yaw = euler[2]
+
+            tempCov = []
+            tempCov.append(msg.pose.covariance[0])
+            tempCov.append(msg.pose.covariance[1])
+            tempCov.append(msg.pose.covariance[6])
+            tempCov.append(msg.pose.covariance[7])
+            covariance.append(tempCov)       
+
+            data9.append([x, y, yaw])
+    
+        if topic == "/gps_data":
+
+            utm_point = utm.from_latlon(msg.latitude, msg.longitude)
+            
+            ang = (-1 * (msg.heading - 90) ) * (np.pi / 180)
+            while(ang <= -np.pi):
+                ang += 2*np.pi
+            while(ang > np.pi):
+                ang -= 2*np.pi
+
+            data10.append([utm_point[0], utm_point[1], ang, msg.heading])
+
+
+    data9 = np.array(data9)
+    data6 = np.array(data6)
+    data8 = np.array(data8)
+    data10 = np.array(data10)
+    IMUvsPlanner = np.array(IMUvsPlanner)
+ 
+    kfX = data9[:,0]
+    kfY = data9[:,1]
+
+    yawArr = data9[:,2]
+
+    #angleCommands = IMUvsPlanner[:,0]
+    #actualAngleOut = IMUvsPlanner[:,1]
+
+    #trueGPSeasting = data10[:,0]
+    #trueGPSnorthing = data10[:,1]
+    
+    skipParam = 5
+    kfXsubsampled = []
+    kfYsubsampled = []
+
+    j = 0
+    while j < len(kfX):
+        kfXsubsampled.append(kfX[j])
+        kfYsubsampled.append(kfY[j])
+        j += skipParam
+
+
+    fig, ax = plt.subplots()
+    ax.plot(kfXsubsampled,kfYsubsampled,'bo', easting, northing, 'ro') #, trueGPSeasting, trueGPSnorthing, 'yo')
+    #ax.plot(easting, northing, 'ro')
+    for point in tuplePointList:
+        ax.add_patch(plt.Circle(point, tolerance, color='g', fill=False))
+
+    
+    #now plot the covariance ellipses
+    i = 0
+    while i < len(covariance):
+        xx = covariance[i][0]
+        xy = covariance[i][1]
+        yx = covariance[i][2]
+        yy = covariance[i][3]
+
+        #define numpy matrix
+        covMat = np.array( [ [xx,xy] , [yx,yy] ])
+
+        #compute eigvals and eigvecs
+        w, v = np.linalg.eig(covMat)
+
+        #form ellipse params
+        mean = [kfX[i], kfY[i]]
+        
+        width = np.math.sqrt(w[0]) * 2.4477
+        height = np.math.sqrt(w[1]) * 2.4477
+        
+        v1 = v[0]
+        v2 = [1,0]
+
+        #angle = np.math.atan2( np.linalg.det([v1,v2]), np.dot(v1,v2) )
+        c = np.dot(v1,v2)/norm(v1)/norm(v2)
+        angle = (np.arccos(np.clip(c, -1, 1))) * (180 / np.pi)
+        print angle
+        
+        ellipse = mpl.patches.Ellipse(mean, width, height, angle, fill=False)
+
+        ax.add_patch(ellipse)
+   
+        i += skipParam
+    
+    #fig, bx = plt.subplots()
+    #bx.plot(yawArr, 'go')
+    #bx.set_title('GPS Heading Values')
+
+    #fig, cx = plt.subplots()
+    #cx.plot(angleCommands, 'ro')
+    #cx.set_title('Commanded Angular Velocities')
+    """
+    fig, dx = plt.subplots()
+    dx.plot(angleCommands, 'ro', actualAngleOut, 'bo')
+    dx.set_title('Commanded Ang Vel (red) and IMU Ang Vel (blue)')
+    """
+    ax.set_title('XY Position')
+    
+    ax.axis('equal')
+    plt.show()
+

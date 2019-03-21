@@ -1,0 +1,13 @@
+<launch>
+
+   <include file="$(find realsense2_camera)/launch/rs_rgbd.launch">
+   </include>
+
+   <node name="static_tf0" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 /map /odom 100"/>
+
+   <node name="static_tf1" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 /odom /camera_color_optical_frame 100"/>
+
+   <rosparam file="$(find roscar_launch)/config/local_costmap_params.yaml" command="load" ns="/move_base/local_costmap/costmap" />
+   <rosparam file="$(find roscar_launch)/config/costmap_common_params.yaml" command="load" ns="/move_base/global_costmap/costmap" />
+
+</launch>

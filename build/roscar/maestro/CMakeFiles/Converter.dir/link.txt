@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC   -shared -Wl,-soname,libConverter.so -o /home/nuccar/roscar_2018/devel/lib/libConverter.so CMakeFiles/Converter.dir/src/Converter.cpp.o 

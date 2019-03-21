@@ -1,0 +1,108 @@
+#include "ros/ros.h"
+
+#include "maestro/Maestro.h"
+#include "maestro/MaestroOut.h"
+#include "maestro/MaestroIn.h"
+
+class ConverterNode {
+public:
+    ConverterNode(ros::NodeHandle, ros::NodeHandle);
+    void targetsCallback(const maestro::VelAndAngle::ConstPtr&);
+    void pulsewidthCallback(const maestro::MaestroOut::ConstPtr&);
+    void run();
+private:
+    ros::NodeHandle nh_;
+    ros::NodeHandle private_nh_;
+    ros::Publisher convertedTargets;
+    ros::Publisher convertedPulseWidths;
+    ros::Subscriber targets;
+    ros::Subscriber pulseWidths;
+};
+
+ConverterNode::ConverterNode(
+        ros::NodeHandle nh, 
+        ros::NodeHandle private_nh) :
+    nh_(nh),
+    private_nh_(private_nh)
+{
+    convertedTargets = nh_.advertise<maestro::MaestroIn>("maestro_in", 10);
+    convertedPulseWidths = nh_.advertise<maestro::VelAndAngle>("converter_out", 10);
+    targets = nh_.subscribe("converter_in", 10, &ConverterNode::targetsCallback, this);
+    pulseWidths = nh_.subscribe("maestro_out", 10, &ConverterNode::pulsewidthCallback, this);
+
+    std::string device;
+    int drive_channel;
+    int steering_channel;
+    private_nh_.param("device", device, std::string("/dev/ttyACM0"));
+    private_nh_.param("drive_channel", drive_channel, 3);
+    private_nh_.param("steering_channel", steering_channel, 1);
+    private_nh_.param("loop_rate", loop_rate_, 10.0);
+    
+    m_ = new Maestro(device, (uint8_t)drive_channel, (uint8_t)steering_channel);
+}
+
+void ConverterNode::targetsCallback(const maestro::VelAndAngle::ConstPtr& msg) {
+
+    //check our linked vectors
+    //lerp if needed
+
+    //publish the conversion
+    maestro::MaestroIn mi;
+    mi.drive_position = convertedVel;
+    mi.steering_position = convertedAngle;
+    convertedTargets.publish(mi);
+}
+
+void ConverterNode::pulsewidthCallback(const maestro::MaestroOut::ConstPtr& msg){
+
+    //check our linked vectors
+    //lerp if needed
+
+    //publish the conversion
+    maestro::VelAndAngle mi;
+    mi.velocity = convertedVel;
+    mi.angle = convertedAngle;
+    convertedPulseWidths.publish(mi);
+
+}
+
+void ConverterNode::run() {
+	
+    ros::Rate loop_rate(loop_rate_);
+    
+    //start out by loading up the configuration file and populating our linked vectors
+
+    while (ros::ok()) {
+        
+        int error = m_->getError();
+        int drive_position = m_->getDrivePosition();
+        int steering_position = m_->getSteeringPosition();
+
+        maestro::MaestroOut mo;
+        mo.error = error;
+        mo.drive_position = drive_position;
+        mo.steering_position = steering_position;
+        out_.publish(mo);
+        
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
+}
+
+int main(int argc, char** argv) {
+    ros::init(argc, argv, "maestro");
+    ros::NodeHandle nh;
+    ros::NodeHandle private_nh("~");
+
+    try {
+        MaestroNode mn(nh, private_nh);
+        mn.run();
+    }
+    catch(std::runtime_error ex) {
+        ROS_ERROR("%s", ex.what());
+        return -1;
+    }
+
+    return 0;
+}
+

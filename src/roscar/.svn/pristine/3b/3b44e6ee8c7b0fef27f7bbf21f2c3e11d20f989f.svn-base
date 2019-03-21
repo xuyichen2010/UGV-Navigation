@@ -1,0 +1,350 @@
+#include "maestro/Converter.h"
+
+#include <stdint.h>
+#include <string>
+#include <fstream>
+#include <vector>
+#include <iostream>
+#include <string.h>
+#include <iterator>
+#include <sstream>
+#include <stdlib.h>
+#include <algorithm>
+
+using namespace std;
+
+Converter::Converter(string motorFileName, string servoFileName){
+
+    //first we set up our lookup tables by reading in our config files
+    string motorLine;
+    string servoLine;
+    ifstream motorFile(motorFileName.c_str());
+    ifstream servoFile(servoFileName.c_str());
+    bool first;
+
+    if (motorFile)
+    {
+        while ( getline (motorFile, motorLine) )
+        {
+            first = true;
+            if(motorFile.eof()){
+                break;
+            }
+
+            string str(motorLine);
+            istringstream buf(str);
+            istream_iterator<string> end;
+            istream_iterator<string> beg(buf);
+            vector<string> tokens(beg,end);
+            for(vector<string>::iterator it=tokens.begin(); it != tokens.end(); ++it)
+            {
+                //convert string to double
+                double value = atof( (*it).c_str() );
+                if(first){
+                    motorPulsewidths.push_back(value);
+                    first = false; //set this flag to false so we know we want to set the second value next time through
+                }
+                else{
+                    motorVelocities.push_back(value);
+                }
+            }
+        }
+
+        
+    motorFile.close();
+    }
+    else { cout << "ERROR: motor config file failed to open" << endl; }
+
+    if (servoFile)
+    {
+        while ( getline (servoFile, servoLine) )
+        {
+            first = true;
+            if(servoFile.eof()){
+                break;
+            }
+
+            string str(servoLine);
+            istringstream buf(str);
+            istream_iterator<string> end;
+            istream_iterator<string> beg(buf);
+            vector<string> tokens(beg,end);
+            for(vector<string>::iterator it=tokens.begin(); it != tokens.end(); ++it)
+            {
+                //convert string to double
+                double value = atof( (*it).c_str() );
+                if(first){
+                    servoPulsewidths.push_back(value);
+                    first = false; //set this flag to false so we know we want to set the second value next time through
+                }
+                else{
+                    servoAngles.push_back(value);
+                }
+            }
+        }
+
+    servoFile.close();
+    }
+    else { cout << "ERROR: servo config file failed to open" << endl; }
+    
+    //sort all the vectors
+    sort(motorPulsewidths.begin(), motorPulsewidths.end());
+    sort(motorVelocities.begin(), motorVelocities.end());
+    sort(servoPulsewidths.begin(), servoPulsewidths.end());
+    sort(servoAngles.begin(), servoAngles.end());
+
+    //print out the vector contents to check
+    //for(int i=0; i<5; i++){
+        //cout << servoPulsewidths[i] << endl;
+        //cout << servoAngles[i] << endl;
+    //}
+
+}
+
+Converter::~Converter(){
+    return;
+}
+
+void Converter::convertToPulsewidth(double vel, double ang, double& convertedVel, double& convertedAngle){
+
+    //search for vel in vector
+    int i = 0;
+    int j = 0;
+
+    //check for 0 values
+    if(vel == 0 && ang == 0){
+        convertedVel = 0;
+        convertedAngle = 0;
+        return;
+    }
+
+    if(vel == 0 && ang != 0){
+        convertedVel = 0;
+    }
+    else if(vel != 0 && ang == 0){
+        convertedAngle = 0;
+    }
+
+
+    while(i < motorVelocities.size() && vel != 0) {
+        //first check if we found the exact value
+        if(motorVelocities[i] == vel){
+            cout << "exact value" << endl;
+            convertedVel = motorPulsewidths[i];
+            break;
+        }
+        else if(motorVelocities[i] > vel){
+            
+            //check if our target was less than any value that we had in configuration file
+            if(i==0)
+            {
+                cout << "all config values higher than target" << endl;
+                convertedVel = motorPulsewidths[i];
+                break;
+            }
+            
+            //our target vel must be between two values then so we inteprolate
+            else
+            {
+                cout << "interpolate the vels" << endl;
+                double lerpVal;
+                lerpVal = lerp(motorVelocities[i-1], motorVelocities[i], vel, motorPulsewidths[i-1], motorPulsewidths[i]);
+                convertedVel = lerpVal;
+                break;
+            }
+        }
+        //check for if the target is higher than anything in the config file
+        else if(motorVelocities[i] < vel){
+            //if vel was higher than all other vels from config file
+            if( i == motorVelocities.size()-1){
+                cout << "vel higher than any other vel" << endl;
+                convertedVel = motorPulsewidths[i];
+                break;
+            }
+        }
+ 
+        i++;
+
+    }
+
+
+    while(j < servoAngles.size() && ang != 0 ) {
+        //first check if we found the exact value
+        if(servoAngles[j] == ang){
+            cout << "exact value" << endl;
+            convertedAngle = servoPulsewidths[j];
+            break;
+        }
+        else if(servoAngles[j] > ang){
+            
+            //check if our target was less than any value that we had in configuration file
+            if(j==0)
+            {
+                cout << "all config values higher than target" << endl;
+                convertedAngle = servoPulsewidths[j];
+                break;
+            }
+            
+            //our target vel must be between two values then so we inteprolate
+            else
+            {
+                cout << "interpolate the vels" << endl;
+                double lerpVal;
+                lerpVal = lerp(servoAngles[j-1], servoAngles[j], ang, servoPulsewidths[j-1], servoPulsewidths[j]);
+                convertedAngle = lerpVal;
+                break;
+            }
+        }
+        //check for if the target is higher than anything in the config file
+        else if(servoAngles[j] < ang){
+            //if vel was higher than all other vels from config file
+            if( j == servoAngles.size()-1){
+                cout << "ang higher than any other ang" << endl;
+                convertedAngle = servoPulsewidths[j];
+                break;
+            }
+        }
+ 
+        j++;
+
+    }
+
+    return;
+}
+
+void Converter::convertFromPulsewidth(double vel, double ang, double& convertedVel, double& convertedAngle){
+
+    //search for pulsewidth in vector
+    int i = 0;
+    int j = 0;
+
+    //first check if we have pulsewidth 0 since that maps direcly to 0's
+    if(vel == 0 && ang == 0){
+        convertedAngle = 0;
+        convertedVel = 0;
+        return;
+    }
+    if(vel == 0 && ang != 0){
+        convertedVel = 0;
+    }
+    if(vel != 0 && ang == 0){
+        convertedAngle = 0;
+    }
+
+
+    while(i < motorPulsewidths.size() && vel != 0) {
+
+                
+        //next check if we found the exact value
+        if(motorPulsewidths[i] == vel){
+            cout << "exact value" << endl;
+            convertedVel = motorVelocities[i];
+            break;
+        }
+        else if(motorPulsewidths[i] > vel){
+            
+            //check if our target was less than any value that we had in configuration file
+            if(i==0)
+            {
+                cout << "all config values higher than target" << endl;
+                convertedVel = motorVelocities[i];
+                break;
+            }
+            
+            //our target vel must be between two values then so we inteprolate
+            else
+            {
+                cout << "interpolate the vels" << endl;
+                double lerpVal;
+                lerpVal = lerp(motorPulsewidths[i-1], motorPulsewidths[i], vel, motorVelocities[i-1], motorVelocities[i]);
+                convertedVel = lerpVal;
+                break;
+            }
+        }
+        //check for if the target is higher than anything in the config file
+        else if(motorPulsewidths[i] < vel){
+            //if vel was higher than all other vels from config file
+            if( i == motorPulsewidths.size()-1){
+                cout << "vel higher than any other vel" << endl;
+                convertedVel = motorVelocities[i];
+                break;
+            }
+        }
+ 
+        i++;
+
+    }
+
+
+    while(j < servoPulsewidths.size() && ang != 0) {
+        //first check if we found the exact value
+        if(servoPulsewidths[j] == ang && ang != 0){
+            cout << "exact value" << endl;
+            convertedAngle = servoAngles[j];
+            break;
+        }
+        else if(servoPulsewidths[j] > ang){
+            
+            //check if our target was less than any value that we had in configuration file
+            if(j==0)
+            {
+                cout << "all config values higher than target" << endl;
+                convertedAngle = servoAngles[j];
+                break;
+            }
+            
+            //our target vel must be between two values then so we inteprolate
+            else
+            {
+                if(servoAngles[j] == 0 || servoAngles[j-1] == 0){
+                    cout << "Don't interpolate between 0!" << endl;
+                    convertedAngle = 0;
+                    break;
+                }
+                else{
+                    cout << "interpolate the vels" << endl;
+                    double lerpVal;
+                    lerpVal = lerp(servoPulsewidths[j-1], servoPulsewidths[j], ang, servoAngles[j-1], servoAngles[j]);
+                    convertedAngle = lerpVal;
+                    break;
+                }
+            }
+        }
+        //check for if the target is higher than anything in the config file
+        else if(servoPulsewidths[j] < ang){
+            //if vel was higher than all other vels from config file
+            if( j == servoPulsewidths.size()-1){
+                cout << "ang higher than any other ang" << endl;
+                convertedAngle = servoAngles[j];
+                break;
+            }
+        }
+ 
+        j++;
+
+    }
+
+
+    return;
+}
+
+/*Function to linearly interpolate: takes in a range (start1 - end1) and a value in that range (x) and then finds the equivalent value in the range start2 - end2. This can be used to linearly interpolate in our lookup table */
+double Converter::lerp(double start1, double end1, double x, double start2, double end2){
+
+    double lerpVal = 0.0;
+    double diff1;
+    double xDiff;
+    double percent;
+    double diff2;
+
+    diff1 = end1 - start1;
+    xDiff = x - start1;
+    percent = xDiff / diff1;
+
+    diff2 = end2 - start2;
+    
+    lerpVal = start2 + (percent * diff2);
+
+    return lerpVal;
+
+}

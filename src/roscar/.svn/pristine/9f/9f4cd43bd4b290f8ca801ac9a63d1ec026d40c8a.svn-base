@@ -1,0 +1,49 @@
+#include "ros/ros.h"
+#include "phidget_encoder/PhidgetEncoder.h"
+
+class PhidgetEncoderNode {
+public:
+    PhidgetEncoderNode(ros::NodeHandle, ros::NodeHandle);
+    void run();
+private:
+    PhidgetEncoder pe_;
+    ros::NodeHandle nh_;
+    ros::NodeHandle private_nh_;
+    ros::Publisher out_;
+};
+
+PhidgetEncoderNode::PhidgetEncoderNode(
+        ros::NodeHandle nh,
+        ros::NodeHandle private_nh) :
+    nh_(nh),
+    private_nh_(private_nh)
+{
+    out_ = nh_.advertise<phidget_encoder::Ticks>("ticks", 10);
+}
+
+void PhidgetEncoderNode::run() {
+    ros::Rate loop_rate(10);
+    while (ros::ok()) {
+	phidget_encoder::Ticks ticks = pe_.getTicks();
+        out_.publish(ticks);
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
+}
+
+int main(int argc, char** argv) {
+    ros::init(argc, argv, "phidget_encoder");
+    ros::NodeHandle nh;
+    ros::NodeHandle private_nh("~");
+
+    try {
+        PhidgetEncoderNode pen(nh, private_nh);
+        pen.run();
+    }
+    catch(std::runtime_error ex) {
+        ROS_ERROR("%s", ex.what());
+        return -1;
+    }
+
+    return 0;
+}

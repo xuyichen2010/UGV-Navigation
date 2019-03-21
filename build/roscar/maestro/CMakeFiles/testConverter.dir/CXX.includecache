@@ -1,0 +1,34 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/nuccar/roscar_2018/src/roscar/maestro/include/maestro/Converter.h
+stdint.h
+-
+string
+-
+fstream
+-
+vector
+-
+iostream
+-
+string.h
+-
+iterator
+-
+sstream
+-
+stdlib.h
+-
+
+/home/nuccar/roscar_2018/src/roscar/maestro/src/testConverter.cpp
+maestro/Converter.h
+/home/nuccar/roscar_2018/src/roscar/maestro/src/maestro/Converter.h
+iostream
+-
+

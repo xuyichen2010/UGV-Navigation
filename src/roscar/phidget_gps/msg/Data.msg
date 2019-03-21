@@ -1,0 +1,9 @@
+Header header
+bool fix_status
+float64 latitude
+float64 longitude
+float64 altitude
+bool is_velocity_valid
+float64 velocity
+bool is_heading_valid
+float64 heading

@@ -1,0 +1,5 @@
+<launch>
+    <include file="$(find roscar_launch)/launch/maestro.launch"/>
+    <include file="$(find roscar_launch)/launch/phidget_encoder.launch"/>
+    <include file="$(find roscar_launch)/launch/phidget_gps.launch"/>
+</launch>

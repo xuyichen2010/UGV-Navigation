@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: bag_utilities
+Description: Description of bag_utilities
+Version: 0.0.0
+Cflags: 
+Libs: -L/home/nuccar/roscar_2018/devel/lib 
+Requires: 

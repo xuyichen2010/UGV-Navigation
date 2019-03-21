@@ -1,0 +1,388 @@
+#include "ros/ros.h"
+#include <tf/transform_broadcaster.h>
+
+#include "maestro/MaestroOut.h"
+#include "phidget_encoder/Ticks.h"
+#include "phidget_gps/Data.h"
+#include "phidget_spatial/Inertia.h"
+#include <geodesy/utm.h>  
+#include "maestro/VelAndAngle.h"
+#include "nav_msgs/Odometry.h"
+
+#include <iostream>
+#include <cmath>
+#include <Eigen/Dense>
+
+//using namespace std;
+using namespace Eigen;
+
+typedef Matrix<double, 3, 2> Matrix3by2;
+typedef Matrix<double, 2, 3> Matrix2by3;
+
+class OdometryNode {
+public:
+    OdometryNode(ros::NodeHandle, ros::NodeHandle);
+    void encoderCallback(const phidget_encoder::Ticks::ConstPtr&);
+    void gpsCallback(const phidget_gps::Data::ConstPtr&);
+    void spatialCallback(const phidget_spatial::Inertia::ConstPtr&);
+    double boundAngle(double ang);
+    void run();
+
+private:
+    ros::NodeHandle nh_;
+    ros::NodeHandle private_nh_;
+    ros::Subscriber readEncoder;
+    ros::Subscriber readGPS;
+    ros::Subscriber readSpatial;
+    ros::Publisher pushOdometry;
+    boost::mutex encoder_lock_;
+    boost::mutex imu_lock_;
+    boost::mutex ekf_lock_;
+
+    void projectCovariance();
+    nav_msgs::Odometry timeUpdatePhase();
+    void measurementUpdatePhase();
+
+    double loop_rate_;
+    double sigma_x_;
+    double sigma_y_;
+    double sigma_theta_;
+    double sigma_northing_;
+    double sigma_easting_;
+    double sigma_heading_;
+
+    double velocity;
+    double angularVelocity;
+    Vector3d position;
+    Matrix3d covariance;
+    Matrix3d noiseXYT;
+    Vector3d gpsMeasurement;
+    Matrix3d noiseGPS;
+           
+    double dt;
+
+    bool careAboutGPS_;
+    bool haveFix;
+    bool initialFix;
+
+    // disable assignment and copy constructor
+    OdometryNode& operator=(const OdometryNode&);
+    OdometryNode(const OdometryNode&);
+};
+
+OdometryNode::OdometryNode(
+        ros::NodeHandle nh, 
+        ros::NodeHandle private_nh) :
+    nh_(nh),
+    private_nh_(private_nh)
+{
+    private_nh_.param("loop_rate", loop_rate_, 10.0);
+    private_nh_.param("sigma_x", sigma_x_, 0.02);
+    private_nh_.param("sigma_y", sigma_y_, 0.02);
+    private_nh_.param("sigma_theta", sigma_theta_, 0.05);
+    private_nh_.param("sigma_northing", sigma_northing_, 3.0);
+    private_nh_.param("sigma_easting", sigma_easting_, 3.0);
+    private_nh_.param("sigma_heading", sigma_heading_, 1.5);
+    private_nh_.param("careAboutGPS", careAboutGPS_, true);
+
+    readEncoder = nh_.subscribe("ticks", 1, &OdometryNode::encoderCallback, this);
+    readGPS = nh_.subscribe("gps_data", 1, &OdometryNode::gpsCallback, this);
+    readSpatial = nh_.subscribe("inertia", 1, &OdometryNode::spatialCallback, this);
+    pushOdometry = nh_.advertise<nav_msgs::Odometry>("kalman_odometry", 10);
+
+    velocity = 0;
+    angularVelocity = 0;
+
+    position << 0, 
+                0,
+                0;
+
+    covariance = covariance.Identity();  //initialize as identity matrix
+
+    noiseXYT << sigma_x_*sigma_x_, 0 , 0,
+             0, sigma_y_*sigma_y_, 0,
+             0, 0, sigma_theta_*sigma_theta_;
+
+    noiseGPS << sigma_easting_*sigma_easting_, 0, 0,
+                0, sigma_northing_*sigma_northing_, 0,
+                0, 0, sigma_heading_ * sigma_heading_;
+                    
+
+    gpsMeasurement << 0,
+                      0,
+                      0;
+    
+    dt = 1 / loop_rate_; //each time the position and covariance updates in the ros::run() is constant
+
+    haveFix = false; //set to be false initially, use this variable to tell when we have our GPS fix and when we can start doing our measurement KF updates
+    initialFix = false;
+}
+
+//Outputs linear velocity as m/s
+void OdometryNode::encoderCallback(const phidget_encoder::Ticks::ConstPtr& msg) {
+
+    boost::mutex::scoped_lock lock(encoder_lock_);
+
+    double signConversion = -1;
+    double meters = 3.66; //distance taped out and measured
+    double ticks = 126176; //empirically measured ten times and averaged
+    double secToMs = 1000;
+    double mpsToMph = 2.23694;
+
+    if((double)msg->elapsed_time != 0){
+        const double TICKTOMETER = (signConversion * meters / ticks) * secToMs; //* mpsToMph; //determined experimentally
+        velocity = TICKTOMETER * ((double)msg->relative_change / (double)(msg->elapsed_time));
+    }
+    else{
+        velocity = 0;
+    }
+    
+}
+
+//Outputs UTM coordinates
+void OdometryNode::gpsCallback(const phidget_gps::Data::ConstPtr& msg) {
+    
+    boost::mutex::scoped_lock lock(ekf_lock_);        
+
+    haveFix = msg->fix_status;
+
+    //Conversion lat/long to UTM coordinates
+    if( careAboutGPS_ && (haveFix==1) ){
+        
+        geographic_msgs::GeoPoint p;
+        p.latitude = msg->latitude;
+        p.longitude = msg->longitude;
+        p.altitude = msg->altitude;
+        geodesy::UTMPoint p_utm;
+        geodesy::fromMsg(p, p_utm);
+        double easting = p_utm.easting;
+        double northing = p_utm.northing;
+        double altitude  = p_utm.altitude;
+
+        double heading = -1 * (msg->heading - 90.0) * (M_PI / 180.0); // subtract 90, multiply by -1, and convert to radians (all so we can make EAST = 0 degrees based on GPS)
+
+        //bound the heading between -pi and pi
+        boundAngle(heading);
+ 
+        //Update phase of KF when/if coordinates are received
+        gpsMeasurement << easting,
+                          northing,
+                          heading;
+
+        if( initialFix ){
+            measurementUpdatePhase();
+        }
+        
+        if( !initialFix ){
+            
+            std::cout << "Have our first fix!" << std::endl;
+            position(0) = easting;
+            position(1) = northing;
+            position(2) = heading;
+            initialFix = true;
+
+        }
+    }
+}
+
+//Outputs angular velocity of z-axis in rad/s
+void OdometryNode::spatialCallback(const phidget_spatial::Inertia::ConstPtr& msg) { 
+  
+    boost::mutex::scoped_lock lock(imu_lock_);
+    angularVelocity = -1 * msg->zAngular * M_PI / 180.0; //negating the ang vel. because IMU upside down        
+
+}
+
+
+//Updates the covariance matrix prediciton
+void OdometryNode::projectCovariance(){    
+    
+    boost::mutex::scoped_lock lock(ekf_lock_); 
+
+    Matrix3d A;
+    Matrix3by2 W;
+    double theta = position(2);
+
+    A << 1, 0, (-1 * velocity * sin(theta) * dt),
+         0, 1, (velocity * cos(theta) * dt),
+         0, 0, 1;
+
+    W << (cos(theta) * dt), 0,
+         (sin(theta) * dt), 0,
+         0, dt;
+
+    covariance = ( A*covariance*A.transpose() ) + noiseXYT;  //Assume linear
+    //For EKF:
+    //covariance = ( A*covariance*A.transpose() ) + ( W*noise*W.transpose() )
+ 
+}
+
+//Updates the position vector prediction
+nav_msgs::Odometry OdometryNode::timeUpdatePhase(){  
+    
+    double xCurr = position(0);
+    double yCurr = position(1);
+    double theta = position(2);    
+    double dtheta;
+    double xPrime;
+    double yPrime;
+    double thetaPrime;
+
+    boost::mutex::scoped_lock lock(ekf_lock_);    
+    {
+        boost::mutex::scoped_lock lock(encoder_lock_);
+        //calculate x, y, theta
+        xPrime = xCurr + ( velocity * dt * ( cos (theta) ) );
+        yPrime = yCurr + ( velocity * dt * ( sin (theta) ) );
+    }
+    {    
+        boost::mutex::scoped_lock lock(imu_lock_);        
+        dtheta = angularVelocity * dt;
+    }
+    
+    thetaPrime = theta + dtheta;
+    
+    //ensure thetaPrime is between -pi and pi
+    thetaPrime = boundAngle(thetaPrime);
+    
+    //update member variable position vector
+    position << xPrime, 
+                yPrime, 
+                thetaPrime;
+    
+    //publish xPrime,yPrime,thetaPrime (open loop version)
+    nav_msgs::Odometry msg;
+    msg.pose.pose.position.x = xPrime;
+    msg.pose.pose.position.y = yPrime;
+    msg.pose.pose.position.z = 0.0;
+
+    //set up the twist elements of the message
+    msg.twist.twist.linear.x = velocity;
+    msg.twist.twist.angular.z = angularVelocity;
+
+    //turn our yaw into a quaternion
+    tf::Quaternion q;
+    q.setRPY(0,0,thetaPrime); //roll = 0, pitch = 0, yaw = thetaPrime
+    geometry_msgs::Quaternion odom_quat;
+    tf::quaternionTFToMsg(q, odom_quat);  
+
+    //set our quaternion
+    msg.pose.pose.orientation = odom_quat;
+    
+    return msg;
+}
+
+void OdometryNode::measurementUpdatePhase(){
+
+    Matrix3d H;  //projection matrix
+    Matrix3d S; //Innovation Covariance
+    Vector3d innovation;
+    Matrix3d kalmanGain;  //Kalman Gain
+    Matrix3d I;  //Identity martrix
+    
+    H << 1, 0, 0,
+         0, 1, 0,
+         0, 0, 1; //h is now the identity
+
+    I = I.Identity();  //initialize identity matrix
+    
+    std::cout << "Covariance before: " << std::endl << covariance << std::endl;
+
+    //Computing Kalman Gain
+    S = ( H*covariance*H.transpose() ) + noiseGPS;
+    kalmanGain = ( covariance*H.transpose() ) * S.inverse();
+
+    //State Update
+    innovation = gpsMeasurement - (H * position);
+
+    //bound heading in innovation
+    innovation(2) = boundAngle(innovation(2));
+
+    position = position + (kalmanGain * innovation);
+
+    //bound angle
+    position(2) = boundAngle(position(2));
+
+    //Covariance Update
+    covariance = (I - (kalmanGain*H)) * covariance;
+
+    std::cout << "S: " << std::endl << S << std::endl;
+    std::cout << "gain: " << std::endl << kalmanGain << std::endl;
+    std::cout << "pos: " << std::endl << position << std::endl;
+    std::cout << "covariance: " << std::endl << covariance << std::endl;
+
+}
+
+double OdometryNode::boundAngle(double ang){
+
+    double boundedAng = ang;
+
+    while(boundedAng <= (-1 * M_PI)){
+        boundedAng = boundedAng + (2 * M_PI);
+    }
+    while(boundedAng > M_PI){
+        boundedAng = boundedAng - (2 * M_PI);
+    }
+
+    return boundedAng;
+
+}
+
+
+void OdometryNode::run() {
+    ros::Rate loop_rate(loop_rate_);
+    while (ros::ok()) {
+
+        //if we care about GPS and have not had a fix yet, don't do anything in the loop
+        if( careAboutGPS_ && !initialFix ){
+            std::cout << "No fix yet..." << std::endl;
+            ros::spinOnce();
+            loop_rate.sleep();
+            continue;
+        }
+
+        //time update
+        nav_msgs::Odometry msg = timeUpdatePhase();
+        projectCovariance();
+
+        //set up the covariance element of the ros odom msg
+        for(int i=0; i<36; i++){
+            msg.pose.covariance[i] = 0.0;
+        }
+        msg.pose.covariance[0] = covariance(0);
+        msg.pose.covariance[1] = covariance(1);
+        msg.pose.covariance[5] = covariance(2);
+        msg.pose.covariance[6] = covariance(3);
+        msg.pose.covariance[7] = covariance(4);
+        msg.pose.covariance[11] = covariance(5);
+        msg.pose.covariance[30] = covariance(6);
+        msg.pose.covariance[31] = covariance(7);
+        msg.pose.covariance[35] = covariance(8);
+
+        //measurement update happens in GPS callback 
+        
+        //publish state        
+        pushOdometry.publish(msg);
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
+}
+
+int main(int argc, char** argv) {
+    ros::init(argc, argv, "odometry_node");
+    ros::NodeHandle nh;
+    ros::NodeHandle private_nh("~");
+
+    try {
+        OdometryNode cn(nh, private_nh);
+        cn.run();
+    }
+    catch(std::runtime_error ex) {
+        ROS_ERROR("%s", ex.what());
+        return -1;
+    }
+
+    return 0;
+}
+
+

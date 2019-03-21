@@ -1,0 +1,3 @@
+#!/bin/bash
+
+rostopic pub -r 1 /target_xy utm_laser/Laser '{Target_Easting:  3.0, Target_Northing: 4.0}'

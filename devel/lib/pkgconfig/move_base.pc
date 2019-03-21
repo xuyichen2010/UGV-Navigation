@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: move_base
+Description: Description of move_base
+Version: 1.15.2
+Cflags: -I/home/nuccar/roscar_2018/devel/include
+Libs: -L/home/nuccar/roscar_2018/devel/lib 
+Requires: dynamic_reconfigure geometry_msgs move_base_msgs nav_msgs roscpp

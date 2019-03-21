@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: point_cloud
+Description: Description of point_cloud
+Version: 0.0.0
+Cflags: -I/home/nuccar/roscar_2018/src/roscar/point_cloud/include
+Libs: -L/home/nuccar/roscar_2018/devel/lib -llaser_scan
+Requires: roscpp rospy std_msgs

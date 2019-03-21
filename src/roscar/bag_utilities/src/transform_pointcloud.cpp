@@ -1,0 +1,156 @@
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+
+#include <tf/tf.h>
+#include <tf2_msgs/TFMessage.h>
+#include <tf2_ros/buffer.h>
+#include <geometry_msgs/TransformStamped.h>
+
+#include <tf/tfMessage.h>
+#include <tf/transform_datatypes.h>
+
+#include <boost/foreach.hpp>
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <math.h>
+
+#include <sensor_msgs/PointCloud2.h>
+#include <pcl/conversions.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_types.h>
+#include <pcl_ros/transforms.h>
+
+typedef pcl::PointXYZ PointT;
+
+std::vector<std::string> get_topics(std::string bagfilename) {
+    rosbag::Bag bag(bagfilename);
+    rosbag::View view(bag);
+    std::vector<const rosbag::ConnectionInfo *> connection_infos =
+        view.getConnections();
+    std::set<std::string> topics;
+
+    BOOST_FOREACH(const rosbag::ConnectionInfo *info, connection_infos) {
+        topics.insert(info->topic);
+    }
+
+    bag.close();
+
+    std::vector<std::string> result(topics.size());
+    std::copy(topics.begin(), topics.end(), result.begin());
+    return result;
+}
+
+/*
+std::string file_prefix("velodyne");
+std::string target_frame("velodyne");
+std::string tf_topic("/tf");
+std::string point_cloud_topic("/velodyne_points");
+*/
+
+std::string file_prefix("asus");
+std::string target_frame("camera_link");
+std::string tf_topic("/tf_static");
+std::string point_cloud_topic("/camera/depth_registered/points");
+
+
+int main(int argc, char** argv) {
+
+    if (argc != 2) {
+        std::cout << "Usage: " << argv[0] << " <in bag>\n";
+        return 0;
+    }
+
+    int count = 1;
+
+    rosbag::Bag in_bag;
+
+    in_bag.open(argv[1], rosbag::bagmode::Read);
+
+    std::vector<std::string> topics = get_topics(std::string(argv[1]));
+
+    // print out the topics
+    for (int i = 0; i < topics.size(); ++i) {
+        std::cerr << topics[i] << std::endl;
+    }
+    std::cerr << std::endl;
+
+    rosbag::View view(in_bag, rosbag::TopicQuery(topics));
+
+    tf2_ros::Buffer tfBuffer;
+
+    BOOST_FOREACH(rosbag::MessageInstance const m, view) {
+
+        // remap the tf messages
+        if (m.getTopic() == tf_topic) {
+            tf2_msgs::TFMessage::ConstPtr t = m.instantiate<tf2_msgs::TFMessage>();
+            std::string authority("unknown");
+            for (unsigned int i = 0; i < t->transforms.size(); ++i) {
+                try {
+                    tfBuffer.setTransform(t->transforms[i], authority, true);
+                }
+                catch (tf2::TransformException& ex) {
+                    std::cerr << ex.what() << std::endl;
+                }
+            }
+        }
+
+        else if (m.getTopic() == point_cloud_topic) {
+            sensor_msgs::PointCloud2::ConstPtr p = m.instantiate<sensor_msgs::PointCloud2>();
+            std::ofstream log_file;
+            std::string s;
+            std::stringstream out;
+            out << count;
+            s = out.str();
+            std::string filename = file_prefix + s;
+            log_file.open( filename.c_str() );
+            log_file.setf(std::ios::fixed, std::ios::floatfield);
+
+            // transform to frame
+            geometry_msgs::TransformStamped tfs;
+            try {
+                tfs = tfBuffer.lookupTransform(target_frame, p->header.frame_id, ros::Time(0));
+            }
+            catch (tf2::TransformException &ex) {
+                std::cerr << ex.what() << std::endl;
+                continue;
+            }
+
+            pcl::PointCloud<PointT>::Ptr point_cloud = (new pcl::PointCloud<PointT>())->makeShared();
+            pcl::fromROSMsg(*p, *point_cloud);
+
+            tf::Quaternion q(
+                tfs.transform.rotation.x,
+                tfs.transform.rotation.y,
+                tfs.transform.rotation.z,
+                tfs.transform.rotation.w
+                );
+
+            tf::Vector3 t(
+                tfs.transform.translation.x,
+                tfs.transform.translation.y,
+                tfs.transform.translation.z
+            );
+
+            tf::Transform transform(q, t);
+            pcl_ros::transformPointCloud(*point_cloud, *point_cloud, transform);
+
+            for (unsigned int i = 0; i < point_cloud->points.size(); i++) {
+                if (isnan(point_cloud->points[i].x)) {
+                    continue;
+                }
+                log_file << point_cloud->points[i].x << "\t";
+                log_file << point_cloud->points[i].y << "\t";
+                log_file << point_cloud->points[i].z << "\n";
+            }
+            log_file.close();
+            count ++;
+        }
+    }
+
+    in_bag.close();
+
+    return 0;
+}
+

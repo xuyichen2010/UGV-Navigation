@@ -1,0 +1,28 @@
+import numpy as np
+import sys
+import matplotlib.pyplot as plt
+
+if len(sys.argv) < 2:
+    print "ERROR: need filename\n"
+    sys.exit()
+else:
+    filename = sys.argv[1]
+    print "\nLoading " + str(filename) + "\n"
+
+arr = np.loadtxt(filename)
+northing = []
+easting = []
+
+for line in arr:
+    northing.append(line[0])
+    easting.append(line[1])
+
+print arr
+
+plt.axis('equal')
+plt.scatter(easting,northing)
+plt.ylabel('northing')
+plt.xlabel('easting')
+plt.show()
+
+

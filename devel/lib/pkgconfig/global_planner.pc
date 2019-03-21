@@ -1,0 +1,8 @@
+prefix=/home/nuccar/roscar_2018/devel
+
+Name: global_planner
+Description: Description of global_planner
+Version: 1.15.2
+Cflags: -I/home/nuccar/roscar_2018/devel/include -I/home/nuccar/roscar_2018/src/roscar/navigation/global_planner/include
+Libs: -L/home/nuccar/roscar_2018/devel/lib -lglobal_planner
+Requires: costmap_2d dynamic_reconfigure geometry_msgs nav_core navfn nav_msgs pluginlib roscpp tf
